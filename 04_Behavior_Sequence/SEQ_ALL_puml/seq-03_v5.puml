@@ -1,0 +1,80 @@
+@startuml
+title SEQ-03 P3 Заведения - список и переход в карточку (P6)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P3 Заведения)" as B
+participant "Сервис карточек\n(P6)" as P6
+participant "Telegram Bot API" as TG
+database "БД D2\nЗаведения и справочники" as D2
+database "БД D4\nИзбранное" as D4
+participant "Яндекс Карты\n(приложение)" as YM
+
+note over TP,B
+  Списки: sendMessage. Карточки: sendPhoto + fallback sendMessage.
+  Если callback_query - выполнить answerCallbackQuery.
+  Кнопка "Найти на Яндекс-картах" - url, клика в backend нет.
+end note
+
+== Список ==
+U -> TP : запрос списка/фильтра
+TP ->> B : update
+
+B -> D2 : select места (page, фильтры)
+D2 --> B : список
+
+B -> TG : sendMessage(список мест)
+TG --> B : ok
+TG -> TP : deliver
+TP --> U : список
+
+opt пагинация/фильтры
+  loop
+    U -> TP : Next/Back/фильтр
+    TP ->> B : update
+    B -> D2 : select места (page=N)
+    D2 --> B : список
+    B -> TG : sendMessage(обновленный список)
+    TG -> TP : deliver
+    TP --> U : обновленный список
+  end
+end
+
+== Карточка ==
+U -> TP : выбрать место
+TP ->> B : update (callback_query): place_id
+
+B -> P6 : buildCard(place_id, тип=заведение)
+P6 -> D2 : read место + photo_url
+D2 --> P6 : данные
+P6 -> D4 : read избранное (опционально)
+D4 --> P6 : да/нет
+P6 --> B : card_text + photo_url + reply_markup(url maps)
+
+alt photo_url доступен
+  B -> TG : sendPhoto(photo_url, caption=card_text, reply_markup)
+  TG --> B : ok | media error
+  alt media error
+    B -> TG : sendMessage(card_text, reply_markup)
+    TG --> B : ok
+  end
+else photo_url нет/недоступен
+  B -> TG : sendMessage(card_text, reply_markup)
+  TG --> B : ok
+end
+
+TG -> TP : deliver
+TP --> U : карточка
+
+opt открыть карту по url-кнопке
+  U -> YM : открыть url "Найти на Яндекс-картах"
+end
+
+@enduml

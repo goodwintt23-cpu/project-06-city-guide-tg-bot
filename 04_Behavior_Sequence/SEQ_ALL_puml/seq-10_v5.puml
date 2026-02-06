@@ -1,0 +1,32 @@
+@startuml
+title SEQ-10 P10 Импорт контента из CMS (сервисный контур)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+participant "CMS\n(источник контента)" as CMS
+participant "Бэкенд\n(P10 Импорт)" as B
+database "БД D2\nЗаведения и справочники" as D2
+database "БД D3\nМероприятия и справочники" as D3
+database "БД D5\nПодборки" as D5
+database "БД D6\nАкции" as D6
+
+CMS -> B : payload контента (пакет/дельта)
+B -> D2 : upsert заведения/справочники (+ photo_url)
+D2 --> B : ok
+B -> D3 : upsert мероприятия/справочники (+ photo_url)
+D3 --> B : ok
+B -> D5 : upsert подборки + связи
+D5 --> B : ok
+B -> D6 : upsert акции + привязки
+D6 --> B : ok
+
+note over CMS,B
+  [служебное] Логирование sync_id/traceId и счетчиков - в документации интеграции.
+end note
+
+@enduml

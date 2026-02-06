@@ -1,0 +1,73 @@
+@startuml
+title SEQ-06 P6 Карточка мероприятия - детали, избранное, карты
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P4 Афиша)" as B
+participant "Сервис карточек\n(P6)" as P6
+participant "Сервис избранного\n(P7)" as P7
+participant "Telegram Bot API" as TG
+database "БД D3\nМероприятия" as D3
+database "БД D4\nИзбранное" as D4
+participant "Яндекс Карты\n(приложение)" as YM
+
+note over TP,B
+  Карточки: sendPhoto + fallback sendMessage.
+  Если callback_query - выполнить answerCallbackQuery.
+  Кнопка "Найти на Яндекс-картах" - url (без update).
+end note
+
+== Карточка ==
+U -> TP : выбрать мероприятие
+TP ->> B : update (callback_query): event_id
+
+B -> P6 : buildCard(event_id, тип=мероприятие)
+P6 -> D3 : read мероприятие + photo_url
+D3 --> P6 : данные
+P6 -> D4 : read избранное (опционально)
+D4 --> P6 : да/нет
+P6 --> B : card_text + photo_url + reply_markup(url maps)
+
+alt photo_url доступен
+  B -> TG : sendPhoto(...)
+  TG --> B : ok | media error
+  alt media error
+    B -> TG : sendMessage(...)
+    TG --> B : ok
+  end
+else photo_url нет/недоступен
+  B -> TG : sendMessage(...)
+  TG --> B : ok
+end
+
+TG -> TP : deliver
+TP --> U : карточка
+
+opt открыть карту по url-кнопке
+  U -> YM : открыть url "Найти на Яндекс-картах"
+end
+deactivate
+
+== Избранное ==
+opt добавить/убрать
+  U -> TP : "В избранное"/"Убрать"
+  TP ->> B : update (callback_query)
+
+  B -> P7 : toggleFavorite(event_id)
+  P7 -> D4 : upsert/delete
+  D4 --> P7 : ok
+  P7 --> B : ok
+
+  B -> TG : sendMessage(подтверждение)
+  TG -> TP : deliver
+  TP --> U : подтверждение
+end
+
+@enduml

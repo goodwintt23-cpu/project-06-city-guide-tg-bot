@@ -1,0 +1,64 @@
+@startuml
+title SEQ-07 P8 Промокоды - список, карточка акции с фото, переход в место
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P8 Промокоды)" as B
+participant "Сервис карточек\n(P6)" as P6
+participant "Telegram Bot API" as TG
+database "БД D6\nАкции" as D6
+database "БД D2\nЗаведения и справочники" as D2
+
+note over TP,B
+  Список промокодов: sendMessage. Карточка промокода: sendPhoto (фото заведения) + fallback sendMessage.
+  Если callback_query - выполнить answerCallbackQuery.
+end note
+
+== Список ==
+U -> TP : открыть "Промокоды"
+TP ->> B : update
+
+B -> D6 : select акции (page)
+D6 --> B : список
+B -> TG : sendMessage(список акций)
+TG -> TP : deliver
+TP --> U : список
+
+== Карточка акции ==
+U -> TP : выбрать акцию
+TP ->> B : update (callback_query): promo_id
+
+B -> D6 : read акция(promo_id -> place_id)
+D6 --> B : данные акции
+B -> D2 : read место(place_id) + photo_url
+D2 --> B : данные места
+
+alt photo_url доступен
+  B -> TG : sendPhoto(photo_url, caption=детали акции, reply_markup)
+  TG --> B : ok | media error
+  alt media error
+    B -> TG : sendMessage(детали акции, reply_markup)
+    TG --> B : ok
+  end
+else photo_url нет/недоступен
+  B -> TG : sendMessage(детали акции, reply_markup)
+  TG --> B : ok
+end
+
+TG -> TP : deliver
+TP --> U : карточка акции
+
+opt "Подробнее о месте"
+  U -> TP : "Подробнее о месте"
+  TP ->> B : update (callback_query): place_id
+  ref over U,B : SEQ-03 (карточка места через P6)
+end
+
+@enduml

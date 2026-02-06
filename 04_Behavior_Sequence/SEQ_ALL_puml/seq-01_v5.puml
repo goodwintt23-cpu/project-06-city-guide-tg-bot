@@ -1,0 +1,61 @@
+@startuml
+title SEQ-01 P1 Онбординг и проверка подписки
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P1 Онбординг)" as B
+participant "Telegram Bot API" as TG
+database "БД D1\nПользователи" as D1
+
+note over TP,B
+  Webhook update. Если callback_query - ответить answerCallbackQuery (не показываем в каждом шаге).
+end note
+
+== /start ==
+U -> TP : /start
+TP ->> B : update (message)
+
+B -> TG : sendMessage(приветствие + кнопка "Старт")
+TG --> B : ok
+TG -> TP : deliver
+TP --> U : приветствие
+
+== "Старт" и проверка подписки ==
+U -> TP : "Старт"
+TP ->> B : update (callback_query)
+
+B -> TG : getChatMember(канал)
+TG --> B : статус_подписки
+
+alt не подписан
+  B -> TG : sendMessage(экран подписки + ссылка на канал)
+  TG --> B : ok
+  TG -> TP : deliver
+  TP --> U : экран подписки
+
+  note over U,B
+    Подписка не шлет update. Проверяем при следующем действии пользователя.
+  end note
+
+  U -> TP : любое действие
+  TP ->> B : update (message/callback_query)
+  B -> TG : getChatMember(повтор)
+  TG --> B : подписан
+end
+
+B -> D1 : upsert Пользователь(статус_подписки, дата_проверки)
+D1 --> B : ok
+
+B -> TG : sendMessage(главное меню)
+TG --> B : ok
+TG -> TP : deliver
+TP --> U : главное меню
+
+@enduml

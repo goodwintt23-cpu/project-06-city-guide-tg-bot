@@ -1,0 +1,34 @@
+@startuml
+title SEQ-09 P9 Помощь - FAQ и обратная связь (без хранения)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P9 Помощь)" as B
+participant "Telegram Bot API" as TG
+
+note over TP,B
+  FAQ/контакты: только sendMessage. Если callback_query - выполнить answerCallbackQuery.
+end note
+
+U -> TP : открыть "Помощь"
+TP ->> B : update
+B -> TG : sendMessage(FAQ/инструкция)
+TG -> TP : deliver
+TP --> U : FAQ/инструкция
+
+opt "Обратная связь"
+  U -> TP : открыть "Обратная связь"
+  TP ->> B : update
+  B -> TG : sendMessage(контакты/канал связи)
+  TG -> TP : deliver
+  TP --> U : контакты
+end
+
+@enduml

@@ -1,0 +1,73 @@
+@startuml
+title SEQ-08 P7 Избранное - список, удаление, карточка элемента (с фото)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P7 Избранное)" as B
+participant "Сервис карточек\n(P6)" as P6
+participant "Telegram Bot API" as TG
+database "БД D4\nИзбранное" as D4
+database "БД D2\nЗаведения и справочники" as D2
+database "БД D3\nМероприятия и справочники" as D3
+
+note over TP,B
+  Список избранного: sendMessage. Карточка элемента: sendPhoto + fallback sendMessage.
+  Если callback_query - выполнить answerCallbackQuery.
+end note
+
+== Список ==
+U -> TP : открыть "Избранное"
+TP ->> B : update
+
+B -> D4 : select избранное (page)
+D4 --> B : ссылки (id по типам)
+B -> D2 : read места (по списку)
+D2 --> B : данные мест
+B -> D3 : read мероприятия (по списку)
+D3 --> B : данные мероприятий
+
+B -> TG : sendMessage(список избранного)
+TG -> TP : deliver
+TP --> U : список
+
+== Удаление ==
+opt удалить элемент из списка
+  U -> TP : "Удалить"
+  TP ->> B : update (callback_query)
+
+  B -> D4 : delete избранное (по элементу)
+  D4 --> B : ok
+
+  ref over U,B : обновить список (как в блоке "Список")
+end
+
+== Карточка элемента ==
+U -> TP : открыть элемент
+TP ->> B : update (callback_query): элемент
+
+B -> P6 : buildCard(объект)
+P6 --> B : card_text + photo_url + reply_markup
+
+alt photo_url доступен
+  B -> TG : sendPhoto(...)
+  TG --> B : ok | media error
+  alt media error
+    B -> TG : sendMessage(...)
+    TG --> B : ok
+  end
+else photo_url нет/недоступен
+  B -> TG : sendMessage(...)
+  TG --> B : ok
+end
+
+TG -> TP : deliver
+TP --> U : карточка
+
+@enduml

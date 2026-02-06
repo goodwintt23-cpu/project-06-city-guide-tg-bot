@@ -1,0 +1,37 @@
+@startuml
+title SEQ-05 P4 Афиша - список мероприятий и выбор карточки (см. SEQ-06)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P4 Афиша)" as B
+participant "Telegram Bot API" as TG
+database "БД D3\nМероприятия" as D3
+
+note over TP,B
+  Афиша - списки sendMessage. Карточка события в SEQ-06 (sendPhoto + fallback).
+  Если callback_query - выполнить answerCallbackQuery.
+end note
+
+U -> TP : открыть "Афиша"
+TP ->> B : update
+
+B -> D3 : select мероприятия (режим/дата/page)
+D3 --> B : список
+B -> TG : sendMessage(список мероприятий)
+TG -> TP : deliver
+TP --> U : список
+
+opt выбрать мероприятие
+  U -> TP : выбрать событие
+  TP ->> B : update (callback_query): event_id
+  ref over U,B : SEQ-06 P6 Карточка мероприятия
+end
+
+@enduml

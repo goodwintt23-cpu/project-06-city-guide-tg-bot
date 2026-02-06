@@ -1,0 +1,73 @@
+@startuml
+title SEQ-04 P5 Подборки - список подборок, список мест, карточка (P6)
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P5 Подборки)" as B
+participant "Сервис карточек\n(P6)" as P6
+participant "Telegram Bot API" as TG
+database "БД D5\nПодборки" as D5
+database "БД D2\nЗаведения и справочники" as D2
+database "БД D4\nИзбранное" as D4
+
+note over TP,B
+  Списки: sendMessage. Карточки: sendPhoto + fallback sendMessage.
+  Если callback_query - выполнить answerCallbackQuery.
+end note
+
+== Список подборок ==
+U -> TP : открыть "Подборки"
+TP ->> B : update
+
+B -> D5 : select подборки (page)
+D5 --> B : список
+B -> TG : sendMessage(список подборок)
+TG -> TP : deliver
+TP --> U : список подборок
+
+== Выбор подборки (список мест) ==
+U -> TP : выбрать подборку
+TP ->> B : update (callback_query): collection_id
+
+B -> D5 : read подборка + place_id[]
+D5 --> B : place_id[]
+B -> D2 : select места (по place_id[])
+D2 --> B : список мест
+B -> TG : sendMessage(список мест из подборки)
+TG -> TP : deliver
+TP --> U : список мест
+
+== Карточка места ==
+U -> TP : выбрать место
+TP ->> B : update (callback_query): place_id
+
+B -> P6 : buildCard(place_id, тип=заведение)
+P6 -> D2 : read место + photo_url
+D2 --> P6 : данные
+P6 -> D4 : read избранное (опционально)
+D4 --> P6 : да/нет
+P6 --> B : card_text + photo_url + reply_markup
+
+alt photo_url доступен
+  B -> TG : sendPhoto(...)
+  TG --> B : ok | media error
+  alt media error
+    B -> TG : sendMessage(...)
+    TG --> B : ok
+  end
+else photo_url нет/недоступен
+  B -> TG : sendMessage(...)
+  TG --> B : ok
+end
+
+TG -> TP : deliver
+TP --> U : карточка
+
+@enduml

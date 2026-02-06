@@ -1,0 +1,44 @@
+@startuml
+title SEQ-02 P2 Главное меню - переход в "Поиск мест" и "Категории"
+hide footbox
+autoactivate on
+skinparam shadowing false
+skinparam ParticipantPadding 8
+skinparam BoxPadding 6
+skinparam maxMessageSize 55
+skinparam SequenceMessageAlign center
+
+actor "Пользователь\n(Telegram)" as U
+participant "Telegram Platform\n(входящие события)" as TP
+participant "Бэкенд TG-бота\n(P2 Навигация)" as B
+participant "Telegram Bot API" as TG
+database "БД D1\nПользователи" as D1
+
+note over TP,B
+  Webhook: backend быстро отвечает ACK 200 (пустое тело).
+end note
+
+note over U,B
+  В главном меню также: Избранное, Помощь, Обратная связь, Промокоды
+  (эти ветки описаны в отдельных SEQ).
+end note
+
+== Переход в Поиск мест ==
+U -> TP : нажать "Поиск мест"
+TP ->> B : update (callback_query)
+
+B -> TG : answerCallbackQuery
+TG --> B : ok
+
+opt проверка статуса/контекста (опционально)
+  B -> D1 : получить Пользователь (контекст/статус)
+  D1 --> B : ok
+end
+
+B -> TG : sendMessage(экран "Категории")
+TG --> B : ok
+TG -> TP : доставить сообщение в чат
+
+TP --> U : экран "Категории"\n(Заведения, Наши подборки, Афиша)
+
+@enduml
